@@ -1,0 +1,50 @@
+#!/bin/dash
+
+usage="\
+Personal Git synchronisation tools.
+Initialize a copy of a Git repository in the current directory.
+
+Usage: $(basename $0 | sed 's/git-/git /') DIRECTORY REMOTE
+
+You should have set your own initials in Git configuration.  If you use \`yi'
+say, then execute \`git config --global user.initials yi'.
+"
+
+i=$(git config user.initials)
+if [ -z "$i" ]; then
+  echo >&2 "$usage"
+  exit 1
+fi
+
+if [ $# -ne 2 ]; then
+  echo >&2 "$usage"
+  exit 1
+fi
+directory=$1
+remote=$2
+
+if [ -d $directory ]; then
+  echo >&2 "Le dépôt $directory existe déjà"
+  exit 1
+fi
+
+_cd() {
+  _1 iinit $1
+  cd $1
+}
+
+_git() {
+  _2 git $*
+  git "$@"
+}
+
+set -e
+
+updir=$(dirname $directory)
+if [ -z "$updir" ]; then
+  _cd
+else
+  mkdir -p $updir
+  _cd $updir
+fi
+_git clone -o $remote $remote:$directory

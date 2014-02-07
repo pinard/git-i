@@ -1,0 +1,123 @@
+#!/bin/dash
+
+usage="\
+Personal Git synchronisation tools.
+Return local modifications on all branches.
+
+Usage: $(basename $0 | sed 's/git-/git /') [OPTION]... [REMOTE]...
+
+Options:
+  -d BRANCH   Moreover, delete said branch.
+
+Local master gets remotely renamed $i-$host ($i are your initials, $host
+is the local machine name).  Without any REMOTE, return everywhere possible.
+
+You should have set your own initials in Git configuration.  If you use \`yi'
+say, then execute \`git config --global user.initials yi'.
+"
+
+i=$(git config user.initials)
+if [ -z "$i" ]; then
+  echo >&2 "$usage"
+  exit 1
+fi
+
+while :; do
+  case "$1" in
+    -d) delete="$2"; shift 2 ;;
+    *) break ;;
+  esac
+done
+
+if [ "$#" -gt 1 ]; then
+  echo >&2 "$usage"
+  exit 1
+fi
+
+host=$(hostname)
+remotes="$*"
+
+_git() {
+  _2 git $*
+  git "$@"
+}
+
+set -e
+
+git diff-index --quiet HEAD || git gui
+
+# List all writeable remotes if none defined.
+if [ -z "$remotes" ]; then
+  temp=$$.git-ipush
+  # Implicit pushes on origin should not be automated.
+  git remote -v | grep -vw origin | grep ' (push)' > $temp
+  while read remote url direction; do
+    case "$url" in
+      *//*) ;;
+      *) remotes="$remotes $remote" ;;
+    esac
+  done < $temp
+  rm $temp
+fi
+
+# Delete branches locally and remotely if -d was given.
+if [ -n "$delete" ]; then
+  case $delete in
+    HEAD|master)
+      echo >&2 "Cowardly refusing to delete $delete!"
+      exit 1
+      ;;
+  esac
+  if git rev-parse --quiet --verify heads/$delete; then
+    _git branch -d $delete
+  fi
+  for remote in $remotes; do
+    if git rev-parse --quiet --verify remotes/$remote/$delete; then
+      _git push $remote :$delete
+    fi
+  done
+fi
+
+# Push locally modified branches.
+for ref in $(git for-each-ref --format '%(refname)' refs/heads); do
+  branch=${ref#refs/heads/}
+  case $ref in
+    refs/heads/master)
+      # master is always forced as $i-$host.
+      away=$i-$host
+      refspec=+$branch:$away
+      ;;
+    refs/heads/$i-*)
+      # Do not push $i-* branches, as they get defined from elsewhere.
+      refspec=
+      ;;
+    *)
+      away=${ref#refs/heads/}
+      refspec=$branch:$away
+      ;;
+  esac
+  if [ -n "$refspec" ]; then
+    commit=$(git rev-parse --quiet --verify heads/$branch)
+    for remote in $remotes; do
+      previous=$(git rev-parse --quiet --verify remotes/$remote/$away) || :
+      if [ $commit != "$previous" ]; then
+        _git push $remote $refspec
+        if [ -n "$previous" ] \
+            && [ $previous != "$(git merge-base $previous $commit)" ]; then
+          for name in $(git ls-remote $remote \
+                          | sed -n 's,'$previous'.refs/heads/,,p'); do
+            case $name in
+              $i-*)
+                echo >&2 -n "Forget $name on $remote (o/y/n)? [n] "
+                read answer
+                case ${answer:-n} in
+                  o|y) _git push $remote :$name ;;
+                esac
+                ;;
+            esac
+          done
+        fi
+      fi
+    done
+  fi
+done

@@ -1,0 +1,36 @@
+#+TITLE: git-i — Personal Git synchronisation tools
+#+OPTIONS: H:2
+
+Here are a few Git tools I often use to synchronise Git repositories
+between machines, while postponing going through a central one.  These
+tools also handle the case where some machines are not always
+connected.
+
+The tree main scripts are:
+
+  - git-iinit :: Initialize a copy of a Git repository in the current
+                 directory.
+  - git-ipull :: Adjust current branch with remote branches having the
+                 same name.
+  - git-ipush :: Return local modifications on all branches.
+
+Three tiny scripts are meant for colorizing the output a bit:
+
+  - _0 :: Close a running line of *_2* level items (unused here).
+  - _1 :: Write a level 1 header (only used in *git-iinit*).
+  - _2 :: Write a level 2 header (used more often).
+
+I personally use these scripts from a more encompassing script which
+synchronizes many projects at once, not provided here as it lacks
+generality for others.  The level 1 divisions are used in there.
+
+To install, merely copy all above files somewhere on your executable
+search /PATH/, and make sure you do not loose the executable bits while
+doing so.
+
+There is fairly succinct documentation at the beginning of *git-iinit*,
+*git-ipull* and *git-ipush*.  I might write user-friendly documentation,
+here, at some later time.  My goal today ([2014-02-07 ven]) is making
+these scripts available to my co-workers.
+
+François

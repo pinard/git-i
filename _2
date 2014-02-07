@@ -1,0 +1,3 @@
+#!/bin/bash
+# Little coloration theme for some of my shell scripts.
+echo -e '\e[33m'"$*"'\e[0m'

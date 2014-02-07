@@ -1,0 +1,86 @@
+#!/bin/dash
+
+usage="\
+Personal Git synchronisation tools.
+Adjust current branch with remote branches having the same name.
+Also adjust master with local or remote $i-* branches ($i are your initials).
+
+Usage: $(basename $0 | sed 's/git-/git /') [REMOTE]...
+
+Without any REMOTE, consider all remote Git repositories.
+
+You should have set your own initials in Git configuration.  If you use \`yi'
+say, then execute \`git config --global user.initials yi'.
+"
+
+i=$(git config user.initials)
+if [ -z "$i" ]; then
+  echo >&2 "$usage"
+  exit 1
+fi
+
+if [ "$#" -gt 1 ]; then
+  echo >&2 "$usage"
+  exit 1
+fi
+
+host=$(hostname)
+remotes="$*"
+
+_git() {
+  _2 git $*
+  git "$@"
+}
+
+set -e
+
+# Save state.
+if ! git diff-index --quiet HEAD; then
+  _git stash
+  stashed=1
+fi
+
+# Fetch foreign commits.
+# Neither --all nor --multiple, for nicer output.
+[ -n "$remotes" ] || remotes="$(git remote)"
+for remote in $remotes; do
+  _git fetch --prune $remote
+done
+
+# Merge branches.
+ref=$(git symbolic-ref HEAD)
+branch=${ref#refs/heads/}
+merges=
+for ref in $(git for-each-ref --format '%(refname)' refs/); do
+  case $ref in
+    # Local $i-$host is not used anymore, and rather called master.
+    refs/heads/$i-$host)
+      _git branch -d ${ref#refs/heads/} ;;
+    refs/heads/$i-*)
+      [ $branch != master ] || merges="$merges ${ref#refs/heads/}" ;;
+    refs/remotes/*/$i-$host) ;;
+    refs/remotes/*/$i-*)
+      [ $branch != master ] || merges="$merges ${ref#refs/remotes/}" ;;
+    refs/remotes/*/$branch)
+      merges="$merges ${ref#refs/remotes/}" ;;
+  esac
+done
+# Octopus always create a commit despite --ff.  Avoid it, sigh!
+for merge in $merges; do
+  base="$(git merge-base $merge $branch)"
+  # Skip it if the commit has been already applied.
+  if [ "$(git rev-parse $merge)" != "$base" ]; then
+    if [ "$(git rev-parse $branch)" = "$base" ]; then
+      _git merge $merge
+    else
+      echo >&2 -n "Non fast-forward merge of $merge from $branch (o/y/n)? [n] "
+      read answer
+      case ${answer:-n} in
+        o|y) _git merge $merge ;;
+      esac
+    fi
+  fi
+done
+
+# Restore state.
+[ -z "$stashed" ] || _git stash pop
