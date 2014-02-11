@@ -8,6 +8,7 @@ Usage: $(basename $0 | sed 's/git-/git /') [OPTION]... [REMOTE]...
 
 Options:
   -d BRANCH   Moreover, delete said branch.
+  -D BRANCH   As -d, proceed even if local branch not fully merged.
 
 Local master gets remotely renamed $i-$host ($i are your initials, $host
 is the local machine name).  Without any REMOTE, return everywhere possible.
@@ -24,7 +25,7 @@ fi
 
 while :; do
   case "$1" in
-    -d) delete="$2"; shift 2 ;;
+    -d|-D) delete="$1"; branch="$2"; shift 2 ;;
     *) break ;;
   esac
 done
@@ -62,18 +63,18 @@ fi
 
 # Delete branches locally and remotely if -d was given.
 if [ -n "$delete" ]; then
-  case $delete in
+  case $branch in
     HEAD|master)
-      echo >&2 "Cowardly refusing to delete $delete!"
+      echo >&2 "Cowardly refusing to delete $branch!"
       exit 1
       ;;
   esac
-  if git rev-parse --quiet --verify heads/$delete; then
-    _git branch -d $delete
+  if git rev-parse --quiet --verify heads/$branch >/dev/null; then
+    _git branch $delete $branch
   fi
   for remote in $remotes; do
-    if git rev-parse --quiet --verify remotes/$remote/$delete; then
-      _git push $remote :$delete
+    if git rev-parse --quiet --verify remotes/$remote/$branch >/dev/null; then
+      _git push $remote :$branch
     fi
   done
 fi
